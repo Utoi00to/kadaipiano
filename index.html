@@ -74,7 +74,7 @@
         }
         .keyboard-container {
             position: relative;
-            width: 675px; /* 75px * 9 */
+            width: 675px;
             height: 200px;
             margin-top: 15px;
         }
@@ -186,8 +186,8 @@ function playSound(freq, instrument = currentInstrument) {
     }
 
     const now = audioCtx.currentTime;
-    const duration = 0.5;
-    const volume = 0.3;
+    const duration = 1.5; // 音の伸びを1.5秒に延長
+    const volume = 0.35;
 
     const masterGain = audioCtx.createGain();
     masterGain.connect(audioCtx.destination);
@@ -238,6 +238,7 @@ function playSound(freq, instrument = currentInstrument) {
         osc.frequency.setValueAtTime(freq * h.mult, now);
 
         gainNode.gain.setValueAtTime(h.gain * 0.3, now);
+        // 余韻がなだらかに消えるように調整
         gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
         osc.connect(gainNode);
@@ -256,7 +257,7 @@ function toggleInstrument() {
     } else {
         currentInstrument = "piano";
     }
-    document.getElementById("inst-btn").innerText = `音色: ${instrumentNames[currentInstrument]}`;
+    document.getElementById("inst-btn").innerText = `音色: ${instrumentNames[current_instrument]}`;
 }
 
 function metronomeLoop() {
@@ -333,7 +334,7 @@ function triggerKey(key) {
     if (!notes[key]) return;
     const [name, freq] = notes[key];
     
-    document.getElementById("info").innerText = `[${instrumentNames[currentInstrument]}] ${name} / ${key.toUpperCase()}`;
+    document.getElementById("info").innerText = `[${instrumentNames[current_instrument]}] ${name} / ${key.toUpperCase()}`;
     playSound(freq);
 
     const el = keyElements[key];
