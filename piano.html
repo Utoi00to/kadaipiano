@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Web Piano</title>
+    <style>
+        body {
+            background-color: #252535;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding-top: 30px;
+        }
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        #info {
+            font-size: 16px;
+            margin: 15px 0;
+            height: 24px;
+        }
+        .controls {
+            margin: 15px 0;
+        }
+        button, select {
+            font-size: 14px;
+            padding: 8px 16px;
+            background-color: #444455;
+            color: #ff4444;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover, select:hover {
+            background-color: #666677;
+        }
+        #keyboard {
+            position: relative;
+            width: 675px; /* 75px * 9 keys */
+            height: 200px;
+            margin: 20px auto;
+            background-color: #252535;
+        }
+        .key {
+            position: absolute;
+            box-sizing: border-box;
+            border: 1px solid black;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            cursor: pointer;
+            user-select: none;
+            font-weight: bold;
+            transition: background-color 0.1s;
+        }
+        .white-key {
+            width: 75px;
+            height: 200px;
+            background-color: white;
+            color: black;
+            z-index: 1;
+        }
+        .black-key {
+            width: 46px;
+            height: 120px;
+            background-color: black;
+            color: white;
+            z-index: 2;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>MY PIANO</h1>
+    <div id="info">キーボードを押して演奏しよう！</div>
+
+    <div class="controls">
+        <label>音色: </label>
+        <select id="instrumentSelect">
+            <option value="piano">ピアノ</option>
+            <option value="xylophone">木琴</option>
+            <option value="musicbox">オルゴール</option>
+        </select>
+    </div>
+
+    <div id="keyboard"></div>
+
+    <script>
+        // 音階と周波数の定義
+        const notes = {
+            "a": ["シ", 493.88, 0], "q": ["ラ#", 466.16, -1],
+            "s": ["ド", 523.25, 1], "e": ["ド#", 554.37, 1],
+            "d": ["レ", 587.33, 2], "r": ["レ#", 622.25, 2],
+            "f": ["ミ", 659.26, 3],
+            "g": ["ファ", 698.46, 4], "y": ["ファ#", 369.99 * 2, 4],
+            "h": ["ソ", 392.00 * 2, 5], "u": ["ソ#", 415.30 * 2, 5],
+            "j": ["ラ", 440.00 * 2, 6], "i": ["ラ#", 466.16 * 2, 6],
+            "k": ["シ", 493.88 * 2, 7],
+            "l": ["ド", 523.25 * 2, 8], "p": ["ド#", 554.37 * 2, 8]
+        };
+
+        const whiteKeys = ["a", "s", "d", "f", "g", "h", "j", "k", "l"];
+        const blackKeys = [
+            ["q", 0], ["e", 1], ["r", 2], 
+            ["y", 4], ["u", 5], ["i", 6], ["p", 8]
+        ];
+
+        const keyElements = {};
+        const keyboard = document.getElementById("keyboard");
+        const info = document.getElementById("info");
+        const instrumentSelect = document.getElementById("instrumentSelect");
+
+        // Web Audio API の初期化
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // 音を鳴らす関数 (Web Audio API)
+        function playSound(freq, instrument) {
+            initAudio();
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (instrument === "piano") {
+                osc.type = "triangle";
+                gainNode.gain.setValueAtTime(0.3, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+            } else if (instrument === "xylophone") {
+                osc.type = "sine";
+                gainNode.gain.setValueAtTime(0.4, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+            } else { // musicbox
+                osc.type = "sine";
+                gainNode.gain.setValueAtTime(0.3, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+            }
+
+            osc.frequency.setValueAtTime(freq, now);
+            osc.start(now);
+            osc.stop(now + 0.8);
+        }
+
+        // 鍵盤の描画
+        // 白鍵の配置
+        whiteKeys.forEach((key, idx) => {
+            const [name, freq] = notes[key];
+            const div = document.createElement("div");
+            div.className = "key white-key";
+            div.style.left = (idx * 75) + "px";
+            div.innerHTML = `<span>${key.toUpperCase()}</span><span>${name}</span>`;
+            
+            div.addEventListener("mousedown", () => triggerKey(key));
+            keyboard.appendChild(div);
+            keyElements[key] = div;
+        });
+
+        // 黒鍵の配置
+        blackKeys.forEach(([key, idx]) => {
+            const [name, freq] = notes[key];
+            const div = document.createElement("div");
+            div.className = "key black-key";
+            div.style.left = ((idx + 1) * 75 - 23) + "px";
+            div.innerHTML = `<span>${key.toUpperCase()}</span><span>${name}</span>`;
+            
+            div.addEventListener("mousedown", () => triggerKey(key));
+            keyboard.appendChild(div);
+            keyElements[key] = div;
+        });
+
+        function triggerKey(key) {
+            const [name, freq] = notes[key];
+            const inst = instrumentSelect.value;
+            const instNames = { "piano": "ピアノ", "xylophone": "木琴", "musicbox": "オルゴール" };
+            
+            info.textContent = `[${instNames[inst]}] ${name} / ${key.toUpperCase()}`;
+            playSound(freq, inst);
+
+            // 鍵盤の色を光らせる
+            const el = keyElements[key];
+            const origBg = el.style.backgroundColor;
+            el.style.backgroundColor = el.classList.contains("white-key") ? "#ffee66" : "#555555";
+            setTimeout(() => {
+                el.style.backgroundColor = origBg;
+            }, 150);
+        }
+
+        // キーボード入力のバインド
+        window.addEventListener("keydown", (event) => {
+            const key = event.key.toLowerCase();
+            if (notes[key]) {
+                triggerKey(key);
+            }
+        });
+    </script>
+</body>
+</html>
