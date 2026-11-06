@@ -128,7 +128,7 @@
     <h1>MY PIANO</h1>
 
     <div class="top-frame">
-        <div id="info" class="info">キーボードを押して演奏しよう！</div>
+        <div id="info" class="info">画面をクリックするかキーボードを押して演奏しよう！</div>
         <button id="inst-btn" class="inst-btn" onclick="toggleInstrument()">音色: ピアノ</button>
     </div>
 
@@ -147,7 +147,15 @@ function initAudio() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
 }
+
+// ユーザーが最初に画面をクリックした時にもオーディオコンテキストを確実に有効化する
+window.addEventListener('click', () => {
+    initAudio();
+}, { once: true });
 
 // 音階と周波数
 const notes = {
@@ -181,12 +189,9 @@ let metronomeTimer = null;
 
 function playSound(freq, instrument = currentInstrument) {
     initAudio();
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
 
     const now = audioCtx.currentTime;
-    const duration = 1.5; // 音の伸びを1.5秒に延長
+    const duration = 1.5;
     const volume = 0.35;
 
     const masterGain = audioCtx.createGain();
@@ -238,7 +243,6 @@ function playSound(freq, instrument = currentInstrument) {
         osc.frequency.setValueAtTime(freq * h.mult, now);
 
         gainNode.gain.setValueAtTime(h.gain * 0.3, now);
-        // 余韻がなだらかに消えるように調整
         gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
         osc.connect(gainNode);
@@ -354,10 +358,3 @@ window.addEventListener("keydown", (e) => {
     if (notes[key]) {
         triggerKey(key);
     }
-});
-
-createKeys();
-</script>
-
-</body>
-</html>
