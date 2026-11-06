@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python Piano in Browser</title>
+    <style>
+        body {
+            background-color: #252535;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+            user-select: none;
+        }
+        h1 {
+            font-size: 28px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .top-frame {
+            width: 675px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .info {
+            font-size: 13px;
+        }
+        .metro-frame {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .metro-label {
+            font-size: 11px;
+            margin-right: 5px;
+        }
+        .tempo-entry {
+            font-size: 11px;
+            width: 45px;
+            text-align: center;
+            background: #fff;
+            border: 1px solid #ccc;
+            padding: 2px;
+            border-radius: 3px;
+        }
+        .btn {
+            font-size: 11px;
+            font-weight: bold;
+            background-color: #444455;
+            color: #ff4444;
+            border: 1px solid #666;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn:active {
+            background-color: #666677;
+        }
+        .inst-btn {
+            font-size: 12px;
+            font-weight: bold;
+            background-color: #444455;
+            color: #ff4444;
+            border: 1px solid #666;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .keyboard-container {
+            position: relative;
+            width: 675px; /* 75px * 9 */
+            height: 200px;
+            margin-top: 15px;
+        }
+        .key {
+            position: absolute;
+            box-sizing: border-box;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 10px;
+            font-weight: bold;
+            transition: background-color 0.1s;
+        }
+        .white-key {
+            width: 75px;
+            height: 200px;
+            background-color: white;
+            color: black;
+            border: 1px solid black;
+            z-index: 1;
+        }
+        .black-key {
+            width: 46px;
+            height: 120px;
+            background-color: black;
+            color: white;
+            border: 1px solid black;
+            z-index: 2;
+            padding-bottom: 5px;
+        }
+        .key-top {
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .black-key .key-top {
+            font-size: 10px;
+        }
+        .key-name {
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .black-key .key-name {
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>MY PIANO</h1>
+
+    <div class="top-frame">
+        <div id="info" class="info">キーボードを押して演奏しよう！</div>
+        <button id="inst-btn" class="inst-btn" onclick="toggleInstrument()">音色: ピアノ</button>
+    </div>
+
+    <div class="metro-frame">
+        <span class="metro-label">BPM:</span>
+        <input type="number" id="tempo-entry" class="tempo-entry" value="120" min="1" max="300">
+        <button id="metro-btn" class="btn" style="color: #ff4444;" onclick="toggleMetronome()">メトロノーム: 停止</button>
+    </div>
+
+    <div id="keyboard" class="keyboard-container"></div>
+
+<script>
+let audioCtx = null;
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+}
+
+// 音階と周波数
+const notes = {
+    "a": ["シ", 493.88],
+    "q": ["ラ#", 466.16],
+    "s": ["ド", 523.25],
+    "e": ["ド#", 554.37],
+    "d": ["レ", 587.33],
+    "r": ["レ#", 622.25],
+    "f": ["ミ", 659.26],
+    "g": ["ファ", 698.46],
+    "y": ["ファ#", 369.99 * 2],
+    "h": ["ソ", 392.00 * 2],
+    "u": ["ソ#", 415.30 * 2],
+    "j": ["ラ", 440.00 * 2],
+    "i": ["ラ#", 466.16 * 2],
+    "k": ["シ", 493.88 * 2],
+    "l": ["ド", 523.25 * 2],
+    "p": ["ド#", 554.37 * 2]
+};
+
+let currentInstrument = "piano";
+const instrumentNames = {
+    "piano": "ピアノ",
+    "xylophone": "木琴",
+    "musicbox": "オルゴール"
+};
+
+let metronomeRunning = false;
+let metronomeTimer = null;
+
+function playSound(freq, instrument = currentInstrument) {
+    initAudio();
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+
+    const now = audioCtx.currentTime;
+    const duration = 0.5;
+    const volume = 0.3;
+
+    const masterGain = audioCtx.createGain();
+    masterGain.connect(audioCtx.destination);
+    masterGain.gain.setValueAtTime(volume, now);
+    masterGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    if (instrument === "metro") {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1000, now);
+        
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.1);
+        return;
+    }
+
+    let harmonics = [];
+    if (instrument === "piano") {
+        harmonics = [
+            { mult: 1, gain: 1.0 },
+            { mult: 2, gain: 0.3 },
+            { mult: 3, gain: 0.1 }
+        ];
+    } else if (instrument === "xylophone") {
+        harmonics = [
+            { mult: 1, gain: 1.0 },
+            { mult: 3.2, gain: 0.5 }
+        ];
+    } else { // musicbox
+        harmonics = [
+            { mult: 1, gain: 1.0 },
+            { mult: 4, gain: 0.4 },
+            { mult: 6, gain: 0.2 }
+        ];
+    }
+
+    harmonics.forEach(h => {
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq * h.mult, now);
+
+        gainNode.gain.setValueAtTime(h.gain * 0.3, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+        osc.connect(gainNode);
+        gainNode.connect(masterGain);
+
+        osc.start(now);
+        osc.stop(now + duration);
+    });
+}
+
+function toggleInstrument() {
+    if (currentInstrument === "piano") {
+        currentInstrument = "xylophone";
+    } else if (currentInstrument === "xylophone") {
+        currentInstrument = "musicbox";
+    } else {
+        currentInstrument = "piano";
+    }
+    document.getElementById("inst-btn").innerText = `音色: ${instrumentNames[currentInstrument]}`;
+}
+
+function metronomeLoop() {
+    if (!metronomeRunning) return;
+    playSound(0, "metro");
+
+    let bpm = parseFloat(document.getElementById("tempo-entry").value);
+    if (isNaN(bpm) || bpm <= 0) bpm = 120;
+    let interval = (60.0 / bpm) * 1000;
+
+    metronomeTimer = setTimeout(metronomeLoop, interval);
+}
+
+function toggleMetronome() {
+    const metroBtn = document.getElementById("metro-btn");
+    if (metronomeRunning) {
+        metronomeRunning = false;
+        clearTimeout(metronomeTimer);
+        metroBtn.innerText = "メトロノーム: 停止";
+        metroBtn.style.color = "#ff4444";
+    } else {
+        metronomeRunning = true;
+        metroBtn.innerText = "メトロノーム: 再生中";
+        metroBtn.style.color = "#44ff44";
+        metronomeLoop();
+    }
+}
+
+const whiteKeys = [
+    ["a", 0], ["s", 1], ["d", 2], ["f", 3],
+    ["g", 4], ["h", 5], ["j", 6], ["k", 7], ["l", 8]
+];
+
+const blackKeys = [
+    ["q", -1], ["e", 1], ["r", 2], 
+    ["y", 4], ["u", 5], ["i", 6], ["p", 8]
+];
+
+const KEY_WIDTH = 75;
+const BLACK_WIDTH = 46;
+const keyboardEl = document.getElementById("keyboard");
+const keyElements = {};
+
+function createKeys() {
+    whiteKeys.forEach(([key, idx]) => {
+        const [name, freq] = notes[key];
+        const el = document.createElement("div");
+        el.className = "key white-key";
+        el.style.left = `${idx * KEY_WIDTH}px`;
+        el.innerHTML = `<span class="key-top">${key.toUpperCase()}</span><span class="key-name">${name}</span>`;
+        
+        el.addEventListener("mousedown", () => triggerKey(key));
+        keyboardEl.appendChild(el);
+        keyElements[key] = el;
+    });
+
+    blackKeys.forEach(([key, idx]) => {
+        const [name, freq] = notes[key];
+        const el = document.createElement("div");
+        el.className = "key black-key";
+        el.style.left = `${(idx + 1) * KEY_WIDTH - (BLACK_WIDTH / 2)}px`;
+        el.innerHTML = `<span class="key-top">${key.toUpperCase()}</span><span class="key-name">${name}</span>`;
+        
+        el.addEventListener("mousedown", (e) => {
+            e.stopPropagation();
+            triggerKey(key);
+        });
+        keyboardEl.appendChild(el);
+        keyElements[key] = el;
+    });
+}
+
+function triggerKey(key) {
+    if (!notes[key]) return;
+    const [name, freq] = notes[key];
+    
+    document.getElementById("info").innerText = `[${instrumentNames[currentInstrument]}] ${name} / ${key.toUpperCase()}`;
+    playSound(freq);
+
+    const el = keyElements[key];
+    const isWhite = whiteKeys.some(k => k[0] === key);
+    const flashColor = isWhite ? "#ffee66" : "#555555";
+    const origColor = isWhite ? "white" : "black";
+
+    el.style.backgroundColor = flashColor;
+    setTimeout(() => {
+        el.style.backgroundColor = origColor;
+    }, 150);
+}
+
+window.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT") return;
+    const key = e.key.toLowerCase();
+    if (notes[key]) {
+        triggerKey(key);
+    }
+});
+
+createKeys();
+</script>
+
+</body>
+</html>
