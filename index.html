@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Python Piano in Browser</title>
+    <title>PC版ピアノ</title>
     <style>
         body {
             background-color: #252535;
@@ -299,10 +299,10 @@
             document.getElementById("instBtn").textContent = `音色: ${instrumentNames[currentInstrument]}`;
         }
 
-        // メトロノーム
+        // メトロノーム機能
         let metronomeRunning = false;
         let metroTimer = null;
 
-        function metronomeLoop() {
-            if (!metronomeRunning) return;
-            playS
+        function toggleMetronome() {
+            const btn = document.getElementById("metroBtn");
+        
