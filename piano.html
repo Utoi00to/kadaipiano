@@ -2,67 +2,100 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Web Piano</title>
+    <title>Python Piano in Browser</title>
     <style>
         body {
             background-color: #252535;
             color: white;
             font-family: Arial, sans-serif;
-            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             margin: 0;
-            padding-top: 30px;
+            padding: 20px;
         }
         h1 {
-            font-size: 28px;
-            margin-bottom: 10px;
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
         }
-        #info {
-            font-size: 16px;
-            margin: 15px 0;
-            height: 24px;
+        .top-frame {
+            width: 675px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 5px 0;
         }
-        .controls {
-            margin: 15px 0;
-        }
-        button, select {
+        .info {
             font-size: 14px;
-            padding: 8px 16px;
+        }
+        .inst-btn {
+            font-size: 12px;
+            font-weight: bold;
             background-color: #444455;
             color: #ff4444;
-            border: none;
-            border-radius: 4px;
+            border: 1px solid #666;
+            padding: 8px 12px;
             cursor: pointer;
-            font-weight: bold;
+            border-radius: 4px;
         }
-        button:hover, select:hover {
+        .inst-btn:active {
             background-color: #666677;
+            color: #ff6666;
         }
-        #keyboard {
-            position: relative;
-            width: 675px; /* 75px * 9 keys */
-            height: 200px;
-            margin: 20px auto;
+        .metro-frame {
             background-color: #252535;
+            margin: 5px 0 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .metro-frame label {
+            font-size: 14px;
+        }
+        .metro-entry {
+            font-size: 14px;
+            width: 50px;
+            text-align: center;
+            background: #fff;
+            color: #000;
+            border: 1px solid #666;
+            padding: 2px;
+        }
+        .metro-btn {
+            font-size: 12px;
+            font-weight: bold;
+            background-color: #444455;
+            color: #ff4444;
+            border: 1px solid #666;
+            padding: 6px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .canvas-container {
+            position: relative;
+            width: 675px;
+            height: 200px;
+            background-color: #252535;
+            user-select: none;
         }
         .key {
             position: absolute;
             box-sizing: border-box;
-            border: 1px solid black;
+            cursor: pointer;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             align-items: center;
             padding: 10px 0;
-            cursor: pointer;
-            user-select: none;
             font-weight: bold;
-            transition: background-color 0.1s;
         }
         .white-key {
             width: 75px;
             height: 200px;
             background-color: white;
             color: black;
+            border: 1px solid black;
             z-index: 1;
         }
         .black-key {
@@ -70,144 +103,201 @@
             height: 120px;
             background-color: black;
             color: white;
+            border: 1px solid black;
             z-index: 2;
+            padding-top: 5px;
+        }
+        .key .shortcut {
+            font-size: 14px;
+        }
+        .black-key .shortcut {
+            font-size: 10px;
+        }
+        .key .name {
+            font-size: 14px;
+        }
+        .black-key .name {
+            font-size: 10px;
         }
     </style>
 </head>
 <body>
 
     <h1>MY PIANO</h1>
-    <div id="info">キーボードを押して演奏しよう！</div>
 
-    <div class="controls">
-        <label>音色: </label>
-        <select id="instrumentSelect">
-            <option value="piano">ピアノ</option>
-            <option value="xylophone">木琴</option>
-            <option value="musicbox">オルゴール</option>
-        </select>
+    <div class="top-frame">
+        <div id="info" class="info">キーボードを押して演奏しよう！</div>
+        <button id="instBtn" class="inst-btn" onclick="toggleInstrument()">音色: ピアノ</button>
     </div>
 
-    <div id="keyboard"></div>
+    <div class="metro-frame">
+        <label for="tempoEntry">BPM:</label>
+        <input type="number" id="tempoEntry" class="metro-entry" value="120" min="20" max="300" oninput="validateBpm(this)">
+        <button id="metroBtn" class="metro-btn" onclick="toggleMetronome()">メトロノーム: 停止</button>
+    </div>
+
+    <div id="keyboardCanvas" class="canvas-container"></div>
 
     <script>
         // 音階と周波数の定義
         const notes = {
-            "a": ["シ", 493.88, 0], "q": ["ラ#", 466.16, -1],
-            "s": ["ド", 523.25, 1], "e": ["ド#", 554.37, 1],
-            "d": ["レ", 587.33, 2], "r": ["レ#", 622.25, 2],
-            "f": ["ミ", 659.26, 3],
-            "g": ["ファ", 698.46, 4], "y": ["ファ#", 369.99 * 2, 4],
-            "h": ["ソ", 392.00 * 2, 5], "u": ["ソ#", 415.30 * 2, 5],
-            "j": ["ラ", 440.00 * 2, 6], "i": ["ラ#", 466.16 * 2, 6],
-            "k": ["シ", 493.88 * 2, 7],
-            "l": ["ド", 523.25 * 2, 8], "p": ["ド#", 554.37 * 2, 8]
+            "a": { name: "シ", freq: 493.88 },
+            "q": { name: "ラ#", freq: 466.16 },
+            "s": { name: "ド", freq: 523.25 },
+            "e": { name: "ド#", freq: 554.37 },
+            "d": { name: "レ", freq: 587.33 },
+            "r": { name: "レ#", freq: 622.25 },
+            "f": { name: "ミ", freq: 659.26 },
+            "g": { name: "ファ", freq: 698.46 },
+            "y": { name: "ファ#", freq: 369.99 * 2 },
+            "h": { name: "ソ", freq: 392.00 * 2 },
+            "u": { name: "ソ#", freq: 415.30 * 2 },
+            "j": { name: "ラ", freq: 440.00 * 2 },
+            "i": { name: "ラ#", freq: 466.16 * 2 },
+            "k": { name: "シ", freq: 493.88 * 2 },
+            "l": { name: "ド", freq: 523.25 * 2 },
+            "p": { name: "ド#", freq: 554.37 * 2 }
         };
 
-        const whiteKeys = ["a", "s", "d", "f", "g", "h", "j", "k", "l"];
+        const whiteKeys = [
+            ["a", 0], ["s", 1], ["d", 2], ["f", 3],
+            ["g", 4], ("h", 5), ["j", 6], ["k", 7], ["l", 8]
+        ].map(k => k[0] === "h" ? ["h", 5] : k); // 修正安全策
+
         const blackKeys = [
-            ["q", 0], ["e", 1], ["r", 2], 
+            ["q", -1], ["e", 1], ["r", 2], 
             ["y", 4], ["u", 5], ["i", 6], ["p", 8]
         ];
 
+        let currentInstrument = "piano";
+        const instrumentNames = {
+            "piano": "ピアノ",
+            "xylophone": "木琴",
+            "musicbox": "オルゴール"
+        };
+
+        const KEY_WIDTH = 75;
+        const BLACK_WIDTH = 46;
+        const canvas = document.getElementById("keyboardCanvas");
         const keyElements = {};
-        const keyboard = document.getElementById("keyboard");
-        const info = document.getElementById("info");
-        const instrumentSelect = document.getElementById("instrumentSelect");
 
         // Web Audio API の初期化
         let audioCtx = null;
-
-        function initAudio() {
+        function getAudioContext() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
-        }
-
-        // 音を鳴らす関数 (Web Audio API)
-        function playSound(freq, instrument) {
-            initAudio();
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
-
-            const now = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-
-            osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-
-            if (instrument === "piano") {
-                osc.type = "triangle";
-                gainNode.gain.setValueAtTime(0.3, now);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
-            } else if (instrument === "xylophone") {
-                osc.type = "sine";
-                gainNode.gain.setValueAtTime(0.4, now);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-            } else { // musicbox
-                osc.type = "sine";
-                gainNode.gain.setValueAtTime(0.3, now);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
-            }
-
-            osc.frequency.setValueAtTime(freq, now);
-            osc.start(now);
-            osc.stop(now + 0.8);
+            return audioCtx;
         }
 
-        // 鍵盤の描画
-        // 白鍵の配置
-        whiteKeys.forEach((key, idx) => {
-            const [name, freq] = notes[key];
-            const div = document.createElement("div");
-            div.className = "key white-key";
-            div.style.left = (idx * 75) + "px";
-            div.innerHTML = `<span>${key.toUpperCase()}</span><span>${name}</span>`;
-            
-            div.addEventListener("mousedown", () => triggerKey(key));
-            keyboard.appendChild(div);
-            keyElements[key] = div;
-        });
+        // 音声合成と再生
+        function playSound(freq, instrument = currentInstrument) {
+            const ctx = getAudioContext();
+            const now = ctx.currentTime;
 
-        // 黒鍵の配置
-        blackKeys.forEach(([key, idx]) => {
-            const [name, freq] = notes[key];
-            const div = document.createElement("div");
-            div.className = "key black-key";
-            div.style.left = ((idx + 1) * 75 - 23) + "px";
-            div.innerHTML = `<span>${key.toUpperCase()}</span><span>${name}</span>`;
-            
-            div.addEventListener("mousedown", () => triggerKey(key));
-            keyboard.appendChild(div);
-            keyElements[key] = div;
-        });
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            if (instrument === "metro") {
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(1000, now);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                osc.start(now);
+                osc.stop(now + 0.05);
+                return;
+            }
+
+            if (instrument === "piano") {
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(freq, now);
+                // 倍音追加の代わりに簡単なフィルター・ゲイン調整
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+            } else if (instrument === "xylophone") {
+                osc.type = "triangle";
+                osc.frequency.setValueAtTime(freq * 1.05, now);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+            } else { // musicbox
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(freq, now);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+            }
+
+            osc.start(now);
+            osc.stop(now + 0.5);
+        }
+
+        // 鍵盤の描画生成
+        function buildKeyboard() {
+            // 白鍵の描画
+            whiteKeys.forEach(([key, idx]) => {
+                const div = document.createElement("div");
+                div.className = "key white-key";
+                div.style.left = (idx * KEY_WIDTH) + "px";
+                div.innerHTML = `<span class="shortcut">${key.toUpperCase()}</span><span class="name">${notes[key].name}</span>`;
+                div.addEventListener("mousedown", () => triggerKey(key));
+                canvas.appendChild(div);
+                keyElements[key] = div;
+            });
+
+            // 黒鍵の描画
+            blackKeys.forEach(([key, idx]) => {
+                const div = document.createElement("div");
+                div.className = "key black-key";
+                div.style.left = ((idx + 1) * KEY_WIDTH - (BLACK_WIDTH / 2)) + "px";
+                div.innerHTML = `<span class="shortcut">${key.toUpperCase()}</span><span class="name">${notes[key].name}</span>`;
+                div.addEventListener("mousedown", () => triggerKey(key));
+                canvas.appendChild(div);
+                keyElements[key] = div;
+            });
+        }
 
         function triggerKey(key) {
-            const [name, freq] = notes[key];
-            const inst = instrumentSelect.value;
-            const instNames = { "piano": "ピアノ", "xylophone": "木琴", "musicbox": "オルゴール" };
+            if (!notes[key]) return;
             
-            info.textContent = `[${instNames[inst]}] ${name} / ${key.toUpperCase()}`;
-            playSound(freq, inst);
+            // BPM入力欄にフォーカスがある場合はフォーカスを外す
+            const tempoEntry = document.getElementById("tempoEntry");
+            if (document.activeElement === tempoEntry) {
+                tempoEntry.blur();
+            }
 
-            // 鍵盤の色を光らせる
+            const data = notes[key];
+            document.getElementById("info").textContent = `[${instrumentNames[currentInstrument]}] ${data.name} / ${key.toUpperCase()}`;
+            playSound(data.freq);
+
+            // 鍵盤を光らせる
             const el = keyElements[key];
-            const origBg = el.style.backgroundColor;
-            el.style.backgroundColor = el.classList.contains("white-key") ? "#ffee66" : "#555555";
+            const isWhite = whiteKeys.some(k => k[0] === key);
+            const flashColor = isWhite ? "#ffee66" : "#555555";
+            const origColor = isWhite ? "white" : "black";
+
+            el.style.backgroundColor = flashColor;
             setTimeout(() => {
-                el.style.backgroundColor = origBg;
+                el.style.backgroundColor = origColor;
             }, 150);
         }
 
-        // キーボード入力のバインド
-        window.addEventListener("keydown", (event) => {
-            const key = event.key.toLowerCase();
-            if (notes[key]) {
-                triggerKey(key);
+        // 音色切り替え
+        function toggleInstrument() {
+            if (currentInstrument === "piano") {
+                current_instrument = "xylophone";
+            } else if (currentInstrument === "xylophone") {
+                current_instrument = "musicbox";
+            } else {
+                current_instrument = "piano";
             }
-        });
-    </script>
-</body>
-</html>
+            document.getElementById("instBtn").textContent = `音色: ${instrumentNames[currentInstrument]}`;
+        }
+        // 変数名のエイリアス同期
+        Object.defineProperty(window, 'current_instrument', {
+            get() { return currentInstrument; },
+            set(v) { currentInstrument
