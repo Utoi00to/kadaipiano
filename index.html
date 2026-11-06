@@ -74,7 +74,7 @@
         }
         .keyboard-container {
             position: relative;
-            width: 675px;
+            width: 675px; /* 75px * 9 */
             height: 200px;
             margin-top: 15px;
         }
@@ -128,7 +128,7 @@
     <h1>MY PIANO</h1>
 
     <div class="top-frame">
-        <div id="info" class="info">画面をクリックするかキーボードを押して演奏しよう！</div>
+        <div id="info" class="info">キーボードを押して演奏しよう！</div>
         <button id="inst-btn" class="inst-btn" onclick="toggleInstrument()">音色: ピアノ</button>
     </div>
 
@@ -147,15 +147,7 @@ function initAudio() {
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
 }
-
-// ユーザーが最初に画面をクリックした時にもオーディオコンテキストを確実に有効化する
-window.addEventListener('click', () => {
-    initAudio();
-}, { once: true });
 
 // 音階と周波数
 const notes = {
@@ -189,10 +181,13 @@ let metronomeTimer = null;
 
 function playSound(freq, instrument = currentInstrument) {
     initAudio();
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
 
     const now = audioCtx.currentTime;
-    const duration = 1.5;
-    const volume = 0.35;
+    const duration = 0.5;
+    const volume = 0.3;
 
     const masterGain = audioCtx.createGain();
     masterGain.connect(audioCtx.destination);
@@ -261,7 +256,7 @@ function toggleInstrument() {
     } else {
         currentInstrument = "piano";
     }
-    document.getElementById("inst-btn").innerText = `音色: ${instrumentNames[current_instrument]}`;
+    document.getElementById("inst-btn").innerText = `音色: ${instrumentNames[currentInstrument]}`;
 }
 
 function metronomeLoop() {
@@ -338,7 +333,7 @@ function triggerKey(key) {
     if (!notes[key]) return;
     const [name, freq] = notes[key];
     
-    document.getElementById("info").innerText = `[${instrumentNames[current_instrument]}] ${name} / ${key.toUpperCase()}`;
+    document.getElementById("info").innerText = `[${instrumentNames[currentInstrument]}] ${name} / ${key.toUpperCase()}`;
     playSound(freq);
 
     const el = keyElements[key];
@@ -358,3 +353,10 @@ window.addEventListener("keydown", (e) => {
     if (notes[key]) {
         triggerKey(key);
     }
+});
+
+createKeys();
+</script>
+
+</body>
+</html>
