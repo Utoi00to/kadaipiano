@@ -31,51 +31,54 @@
         .info {
             font-size: 13px;
         }
-        .metro-frame {
-            display: flex;
-            align-items: center;
-            margin: 5px 0;
-        }
-        .metro-label {
-            font-size: 11px;
-            margin-right: 5px;
-        }
-        .tempo-entry {
-            font-size: 11px;
-            width: 45px;
-            text-align: center;
-            background: #fff;
-            border: 1px solid #ccc;
-            padding: 2px;
-            border-radius: 3px;
-        }
-        .btn {
-            font-size: 11px;
-            font-weight: bold;
-            background-color: #444455;
-            color: #ff4444;
-            border: 1px solid #666;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .btn:active {
-            background-color: #666677;
-        }
         .inst-btn {
             font-size: 12px;
             font-weight: bold;
             background-color: #444455;
             color: #ff4444;
             border: 1px solid #666;
-            padding: 6px 12px;
-            border-radius: 4px;
+            padding: 8px 12px;
             cursor: pointer;
+            border-radius: 4px;
         }
-        .keyboard-container {
+        .inst-btn:active {
+            background-color: #666677;
+            color: #ff6666;
+        }
+        .metro-frame {
+            background-color: #252535;
+            margin: 5px 0 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .metro-frame label {
+            font-size: 11px;
+        }
+        .metro-entry {
+            font-size: 11px;
+            width: 50px;
+            text-align: center;
+            background: #fff;
+            color: #000;
+            border: 1px solid #666;
+            padding: 2px;
+        }
+        .metro-btn {
+            font-size: 11px;
+            font-weight: bold;
+            background-color: #444455;
+            color: #ff4444;
+            border: 1px solid #666;
+            padding: 6px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .canvas-container {
             position: relative;
-            width: 675px; /* 75px * 9 */
+            width: 675px;
             height: 200px;
+            background-color: #252535;
             margin-top: 15px;
         }
         .key {
@@ -86,9 +89,8 @@
             flex-direction: column;
             justify-content: space-between;
             align-items: center;
-            padding-bottom: 10px;
+            padding: 10px 0;
             font-weight: bold;
-            transition: background-color 0.1s;
         }
         .white-key {
             width: 75px;
@@ -105,21 +107,21 @@
             color: white;
             border: 1px solid black;
             z-index: 2;
-            padding-bottom: 5px;
+            padding-top: 5px;
         }
-        .key-top {
+        .key .shortcut {
             font-size: 14px;
-            margin-top: 5px;
         }
-        .black-key .key-top {
+        .black-key .shortcut {
             font-size: 10px;
         }
-        .key-name {
+        .key .name {
             font-size: 14px;
-            margin-bottom: 5px;
+            margin-bottom: 30px;
         }
-        .black-key .key-name {
+        .black-key .name {
             font-size: 10px;
+            margin-bottom: 20px;
         }
     </style>
 </head>
@@ -129,234 +131,178 @@
 
     <div class="top-frame">
         <div id="info" class="info">キーボードを押して演奏しよう！</div>
-        <button id="inst-btn" class="inst-btn" onclick="toggleInstrument()">音色: ピアノ</button>
+        <button id="instBtn" class="inst-btn" onclick="toggleInstrument()">音色: ピアノ</button>
     </div>
 
     <div class="metro-frame">
-        <span class="metro-label">BPM:</span>
-        <input type="number" id="tempo-entry" class="tempo-entry" value="120" min="1" max="300">
-        <button id="metro-btn" class="btn" style="color: #ff4444;" onclick="toggleMetronome()">メトロノーム: 停止</button>
+        <label for="tempoEntry">BPM:</label>
+        <input type="text" id="tempoEntry" class="metro-entry" value="120">
+        <button id="metroBtn" class="metro-btn" onclick="toggleMetronome()">メトロノーム: 停止</button>
     </div>
 
-    <div id="keyboard" class="keyboard-container"></div>
+    <div id="keyboardCanvas" class="canvas-container"></div>
 
-<script>
-let audioCtx = null;
+    <script>
+        const notes = {
+            "a": { name: "シ", freq: 493.88 },
+            "q": { name: "ラ#", freq: 466.16 },
+            "s": { name: "ド", freq: 523.25 },
+            "e": { name: "ド#", freq: 554.37 },
+            "d": { name: "レ", freq: 587.33 },
+            "r": { name: "レ#", freq: 622.25 },
+            "f": { name: "ミ", freq: 659.26 },
+            "g": { name: "ファ", freq: 698.46 },
+            "y": { name: "ファ#", freq: 369.99 * 2 },
+            "h": { name: "ソ", freq: 392.00 * 2 },
+            "u": { name: "ソ#", freq: 415.30 * 2 },
+            "j": { name: "ラ", freq: 440.00 * 2 },
+            "i": { name: "ラ#", freq: 466.16 * 2 },
+            "k": { name: "シ", freq: 493.88 * 2 },
+            "l": { name: "ド", freq: 523.25 * 2 },
+            "p": { name: "ド#", freq: 554.37 * 2 }
+        };
 
-function initAudio() {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-}
-
-// 音階と周波数
-const notes = {
-    "a": ["シ", 493.88],
-    "q": ["ラ#", 466.16],
-    "s": ["ド", 523.25],
-    "e": ["ド#", 554.37],
-    "d": ["レ", 587.33],
-    "r": ["レ#", 622.25],
-    "f": ["ミ", 659.26],
-    "g": ["ファ", 698.46],
-    "y": ["ファ#", 369.99 * 2],
-    "h": ["ソ", 392.00 * 2],
-    "u": ["ソ#", 415.30 * 2],
-    "j": ["ラ", 440.00 * 2],
-    "i": ["ラ#", 466.16 * 2],
-    "k": ["シ", 493.88 * 2],
-    "l": ["ド", 523.25 * 2],
-    "p": ["ド#", 554.37 * 2]
-};
-
-let currentInstrument = "piano";
-const instrumentNames = {
-    "piano": "ピアノ",
-    "xylophone": "木琴",
-    "musicbox": "オルゴール"
-};
-
-let metronomeRunning = false;
-let metronomeTimer = null;
-
-function playSound(freq, instrument = currentInstrument) {
-    initAudio();
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
-
-    const now = audioCtx.currentTime;
-    const duration = 0.5;
-    const volume = 0.3;
-
-    const masterGain = audioCtx.createGain();
-    masterGain.connect(audioCtx.destination);
-    masterGain.gain.setValueAtTime(volume, now);
-    masterGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-
-    if (instrument === "metro") {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(1000, now);
-        
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
-
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start(now);
-        osc.stop(now + 0.1);
-        return;
-    }
-
-    let harmonics = [];
-    if (instrument === "piano") {
-        harmonics = [
-            { mult: 1, gain: 1.0 },
-            { mult: 2, gain: 0.3 },
-            { mult: 3, gain: 0.1 }
+        const whiteKeys = [
+            ["a", 0], ["s", 1], ["d", 2], ["f", 3],
+            ["g", 4], ["h", 5], ["j", 6], ["k", 7], ["l", 8]
         ];
-    } else if (instrument === "xylophone") {
-        harmonics = [
-            { mult: 1, gain: 1.0 },
-            { mult: 3.2, gain: 0.5 }
+
+        const blackKeys = [
+            ["q", -1], ["e", 1], ["r", 2], 
+            ["y", 4], ["u", 5], ["i", 6], ["p", 8]
         ];
-    } else { // musicbox
-        harmonics = [
-            { mult: 1, gain: 1.0 },
-            { mult: 4, gain: 0.4 },
-            { mult: 6, gain: 0.2 }
-        ];
-    }
 
-    harmonics.forEach(h => {
-        const osc = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
+        let currentInstrument = "piano";
+        const instrumentNames = {
+            "piano": "ピアノ",
+            "xylophone": "木琴",
+            "musicbox": "オルゴール"
+        };
 
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq * h.mult, now);
+        const KEY_WIDTH = 75;
+        const BLACK_WIDTH = 46;
+        const keyElements = {};
 
-        gainNode.gain.setValueAtTime(h.gain * 0.3, now);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+        // 音響エンジンの準備
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
 
-        osc.connect(gainNode);
-        gainNode.connect(masterGain);
+        function playSound(freq, inst = currentInstrument) {
+            initAudio();
+            if (!audioCtx) return;
 
-        osc.start(now);
-        osc.stop(now + duration);
-    });
-}
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
 
-function toggleInstrument() {
-    if (currentInstrument === "piano") {
-        currentInstrument = "xylophone";
-    } else if (currentInstrument === "xylophone") {
-        currentInstrument = "musicbox";
-    } else {
-        currentInstrument = "piano";
-    }
-    document.getElementById("inst-btn").innerText = `音色: ${instrumentNames[currentInstrument]}`;
-}
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
 
-function metronomeLoop() {
-    if (!metronomeRunning) return;
-    playSound(0, "metro");
+            if (inst === "metro") {
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(1000, now);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+                osc.start(now);
+                osc.stop(now + 0.05);
+                return;
+            }
 
-    let bpm = parseFloat(document.getElementById("tempo-entry").value);
-    if (isNaN(bpm) || bpm <= 0) bpm = 120;
-    let interval = (60.0 / bpm) * 1000;
+            if (inst === "piano") {
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(freq, now);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+            } else if (inst === "xylophone") {
+                osc.type = "triangle";
+                osc.frequency.setValueAtTime(freq * 1.05, now);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+            } else { // musicbox
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(freq, now);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+            }
 
-    metronomeTimer = setTimeout(metronomeLoop, interval);
-}
+            osc.start(now);
+            osc.stop(now + 0.5);
+        }
 
-function toggleMetronome() {
-    const metroBtn = document.getElementById("metro-btn");
-    if (metronomeRunning) {
-        metronomeRunning = false;
-        clearTimeout(metronomeTimer);
-        metroBtn.innerText = "メトロノーム: 停止";
-        metroBtn.style.color = "#ff4444";
-    } else {
-        metronomeRunning = true;
-        metroBtn.innerText = "メトロノーム: 再生中";
-        metroBtn.style.color = "#44ff44";
-        metronomeLoop();
-    }
-}
+        // 鍵盤の作成
+        function buildKeyboard() {
+            const container = document.getElementById("keyboardCanvas");
+            container.innerHTML = "";
 
-const whiteKeys = [
-    ["a", 0], ["s", 1], ["d", 2], ["f", 3],
-    ["g", 4], ["h", 5], ["j", 6], ["k", 7], ["l", 8]
-];
+            whiteKeys.forEach(([key, idx]) => {
+                const div = document.createElement("div");
+                div.className = "key white-key";
+                div.style.left = (idx * KEY_WIDTH) + "px";
+                div.innerHTML = `<span class="shortcut">${key.toUpperCase()}</span><span class="name">${notes[key].name}</span>`;
+                div.onmousedown = (e) => { e.preventDefault(); pressKey(key); };
+                container.appendChild(div);
+                keyElements[key] = div;
+            });
 
-const blackKeys = [
-    ["q", -1], ["e", 1], ["r", 2], 
-    ["y", 4], ["u", 5], ["i", 6], ["p", 8]
-];
+            blackKeys.forEach(([key, idx]) => {
+                const div = document.createElement("div");
+                div.className = "key black-key";
+                div.style.left = ((idx + 1) * KEY_WIDTH - (BLACK_WIDTH / 2)) + "px";
+                div.innerHTML = `<span class="shortcut">${key.toUpperCase()}</span><span class="name">${notes[key].name}</span>`;
+                div.onmousedown = (e) => { e.preventDefault(); pressKey(key); };
+                container.appendChild(div);
+                keyElements[key] = div;
+            });
+        }
 
-const KEY_WIDTH = 75;
-const BLACK_WIDTH = 46;
-const keyboardEl = document.getElementById("keyboard");
-const keyElements = {};
+        function pressKey(key) {
+            const tempoEntry = document.getElementById("tempoEntry");
+            if (document.activeElement === tempoEntry) {
+                tempoEntry.blur();
+            }
 
-function createKeys() {
-    whiteKeys.forEach(([key, idx]) => {
-        const [name, freq] = notes[key];
-        const el = document.createElement("div");
-        el.className = "key white-key";
-        el.style.left = `${idx * KEY_WIDTH}px`;
-        el.innerHTML = `<span class="key-top">${key.toUpperCase()}</span><span class="key-name">${name}</span>`;
-        
-        el.addEventListener("mousedown", () => triggerKey(key));
-        keyboardEl.appendChild(el);
-        keyElements[key] = el;
-    });
+            key = key.toLowerCase();
+            if (!notes[key]) return;
 
-    blackKeys.forEach(([key, idx]) => {
-        const [name, freq] = notes[key];
-        const el = document.createElement("div");
-        el.className = "key black-key";
-        el.style.left = `${(idx + 1) * KEY_WIDTH - (BLACK_WIDTH / 2)}px`;
-        el.innerHTML = `<span class="key-top">${key.toUpperCase()}</span><span class="key-name">${name}</span>`;
-        
-        el.addEventListener("mousedown", (e) => {
-            e.stopPropagation();
-            triggerKey(key);
-        });
-        keyboardEl.appendChild(el);
-        keyElements[key] = el;
-    });
-}
+            const data = notes[key];
+            document.getElementById("info").textContent = `[${instrumentNames[currentInstrument]}] ${data.name} / ${key.toUpperCase()}`;
+            playSound(data.freq);
 
-function triggerKey(key) {
-    if (!notes[key]) return;
-    const [name, freq] = notes[key];
-    
-    document.getElementById("info").innerText = `[${instrumentNames[currentInstrument]}] ${name} / ${key.toUpperCase()}`;
-    playSound(freq);
+            const el = keyElements[key];
+            if (el) {
+                const isWhite = whiteKeys.some(k => k[0] === key);
+                const flashColor = isWhite ? "#ffee66" : "#555555";
+                const origColor = isWhite ? "white" : "black";
 
-    const el = keyElements[key];
-    const isWhite = whiteKeys.some(k => k[0] === key);
-    const flashColor = isWhite ? "#ffee66" : "#555555";
-    const origColor = isWhite ? "white" : "black";
+                el.style.backgroundColor = flashColor;
+                setTimeout(() => {
+                    el.style.backgroundColor = origColor;
+                }, 150);
+            }
+        }
 
-    el.style.backgroundColor = flashColor;
-    setTimeout(() => {
-        el.style.backgroundColor = origColor;
-    }, 150);
-}
+        function toggleInstrument() {
+            if (currentInstrument === "piano") {
+                currentInstrument = "xylophone";
+            } else if (currentInstrument === "xylophone") {
+                currentInstrument = "musicbox";
+            } else {
+                currentInstrument = "piano";
+            }
+            document.getElementById("instBtn").textContent = `音色: ${instrumentNames[currentInstrument]}`;
+        }
 
-window.addEventListener("keydown", (e) => {
-    if (e.target.tagName === "INPUT") return;
-    const key = e.key.toLowerCase();
-    if (notes[key]) {
-        triggerKey(key);
-    }
-});
+        // メトロノーム
+        let metronomeRunning = false;
+        let metroTimer = null;
 
-createKeys();
-</script>
-
-</body>
-</html>
+        function metronomeLoop() {
+            if (!metronomeRunning) return;
+            playS
